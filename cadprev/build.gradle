@@ -25,7 +25,6 @@ repositories {
 dependencies {
 	compile('org.springframework.boot:spring-boot-starter')
 	compile('org.seleniumhq.selenium:selenium-api:3.6.0')
-	//compile('org.seleniumhq.selenium:selenium-support:3.6.0')
 	compile('org.seleniumhq.selenium:selenium-remote-driver:3.6.0')
 
 	compile('org.seleniumhq.selenium:selenium-java:3.6.0')
