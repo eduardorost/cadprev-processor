@@ -1,6 +1,8 @@
 package com.cadprev;
 
+import org.apache.log4j.Logger;
 import org.openqa.selenium.By;
+import org.openqa.selenium.NoSuchElementException;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.firefox.FirefoxDriver;
@@ -12,8 +14,13 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
+import java.util.Arrays;
+import java.util.List;
+
 @SpringBootApplication
 public class CadprevApplication implements ApplicationRunner {
+
+	static Logger log = Logger.getLogger(CadprevApplication.class);
 
 	private final WebDriver DRIVER = new FirefoxDriver(firefoxOptions());
 	private static final String URL_CADPREV = "http://cadprev.previdencia.gov.br/Cadprev/faces/pages/index.xhtml";
@@ -42,21 +49,24 @@ public class CadprevApplication implements ApplicationRunner {
 
 	private void downloadAllDAIRsUnidadeFederativa(String unidadeFederativa) {
 		selectDropdown(UNIDADE_FEDERATIVA, unidadeFederativa);
-		downloadDAIRCidade(unidadeFederativa, "Município de Taquara");
+
+		List<String> cidades = Arrays.asList("Município de Taquara", "Município de Rolante", "Município de Morro Reuter");
+
+		cidades.forEach(this::downloadDAIRCidade);
 	}
 
-	private void downloadDAIRCidade(String unidadeFederativa, String cidade) {
+	private void downloadDAIRCidade(String cidade) {
 		selectDropdown(CIDADE, cidade);
 		verifyCheckbox(ENCERRAMENTO_MES, true);
 		verifyCheckbox(OPERACOES, false);
 		verifyCheckbox(INTERMEDIARIO, false);
 		clickElement(CONSULTAR);
-		download(unidadeFederativa, cidade);
-	}
 
-	private void download(String unidadeFederativa, String cidade) {
-		//profile.setPreference("browser.download.dir", String.format("~/Download/DAIR/%s/%s", unidadeFederativa, cidade));
-		clickElement(DOWNLOAD);
+		try {
+			clickElement(DOWNLOAD);
+		} catch (NoSuchElementException ex) {
+			log.info(cidade + " não tem arquivo disponível");
+		}
 	}
 
 	private FirefoxOptions firefoxOptions() {
@@ -68,6 +78,7 @@ public class CadprevApplication implements ApplicationRunner {
 
 	private FirefoxProfile firefoxProfile() {
 		return new FirefoxProfile() {{
+			setPreference("browser.download.dir", "~/Download/DAIR");
 			setPreference("browser.download.folderList", 2);
 			setPreference("browser.download.manager.showWhenStarting", false);
 			setPreference("browser.helperApps.alwaysAsk.force", false);
