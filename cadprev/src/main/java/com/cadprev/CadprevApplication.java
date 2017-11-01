@@ -14,8 +14,8 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
-import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @SpringBootApplication
 public class CadprevApplication implements ApplicationRunner {
@@ -44,15 +44,20 @@ public class CadprevApplication implements ApplicationRunner {
 		DRIVER.get(URL_CADPREV);
 
 		openDemonstrativosDAIR();
-		downloadAllDAIRsUnidadeFederativa("RIO GRANDE DO SUL");
+		downloadAllDAIRsUnidadeFederativa();
 	}
 
-	private void downloadAllDAIRsUnidadeFederativa(String unidadeFederativa) {
-		selectDropdown(UNIDADE_FEDERATIVA, unidadeFederativa);
+	private void downloadAllDAIRsUnidadeFederativa() {
+		getAllOptions(UNIDADE_FEDERATIVA).forEach(uf -> {
+			getDropdown(UNIDADE_FEDERATIVA).selectByVisibleText(uf);
+			getAllOptions(CIDADE).forEach(this::downloadDAIRCidade);
+		});
+	}
 
-		List<String> cidades = Arrays.asList("Município de Taquara", "Município de Rolante", "Município de Morro Reuter");
-
-		cidades.forEach(this::downloadDAIRCidade);
+	private List<String> getAllOptions(String element) {
+		List<String> list = getDropdown(element).getOptions().stream().map(WebElement::getText).collect(Collectors.toList());
+		list.remove(0);
+		return list;
 	}
 
 	private void downloadDAIRCidade(String cidade) {
@@ -78,8 +83,8 @@ public class CadprevApplication implements ApplicationRunner {
 
 	private FirefoxProfile firefoxProfile() {
 		return new FirefoxProfile() {{
-			setPreference("browser.download.dir", "~/Download/DAIR");
 			setPreference("browser.download.folderList", 2);
+			setPreference("browser.download.dir", "~/Download/DAIR");
 			setPreference("browser.download.manager.showWhenStarting", false);
 			setPreference("browser.helperApps.alwaysAsk.force", false);
 			setPreference("browser.helperApps.neverAsk.saveToDisk", "application/pdf");
@@ -95,9 +100,12 @@ public class CadprevApplication implements ApplicationRunner {
 		clickElement(CONSULTAS_DEMONSTRATIVOS);
 	}
 
+	private Select getDropdown(String element) {
+		return new Select(DRIVER.findElement(By.xpath(element)));
+	}
+
 	private void selectDropdown(String element, String value) {
-		Select dropdown = new Select(DRIVER.findElement(By.xpath(element)));
-		dropdown.selectByVisibleText(value);
+		getDropdown(element).selectByVisibleText(value);
 	}
 
 	private void clickElement(String element) {
