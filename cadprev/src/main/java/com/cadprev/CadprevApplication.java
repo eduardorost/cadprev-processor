@@ -1,5 +1,6 @@
 package com.cadprev;
 
+import com.google.common.io.Files;
 import org.apache.log4j.Logger;
 import org.openqa.selenium.By;
 import org.openqa.selenium.NoSuchElementException;
@@ -14,6 +15,10 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
+import java.io.File;
+import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -50,7 +55,7 @@ public class CadprevApplication implements ApplicationRunner {
 	private void downloadAllDAIRsUnidadeFederativa() {
 		getAllOptions(UNIDADE_FEDERATIVA).forEach(uf -> {
 			getDropdown(UNIDADE_FEDERATIVA).selectByVisibleText(uf);
-			getAllOptions(CIDADE).forEach(this::downloadDAIRCidade);
+			getAllOptions(CIDADE).forEach(cidade -> downloadDAIRCidade(cidade, uf));
 		});
 	}
 
@@ -60,7 +65,7 @@ public class CadprevApplication implements ApplicationRunner {
 		return list;
 	}
 
-	private void downloadDAIRCidade(String cidade) {
+	private void downloadDAIRCidade(String cidade, String uf) {
 		selectDropdown(CIDADE, cidade);
 		verifyCheckbox(ENCERRAMENTO_MES, true);
 		verifyCheckbox(OPERACOES, false);
@@ -69,9 +74,38 @@ public class CadprevApplication implements ApplicationRunner {
 
 		try {
 			clickElement(DOWNLOAD);
+			generateHtml(renameFile(uf, cidade));
 		} catch (NoSuchElementException ex) {
 			log.info(cidade + " não tem arquivo disponível");
+		} catch (IOException e) {
+			log.info(String.format("erro ao renomear arquivo cidade %s estado %s", cidade, uf), e);
+		} catch (InterruptedException e) {
+			log.info("não conseguiu gerar o html");
 		}
+	}
+
+	private void generateHtml(File path) throws IOException, InterruptedException {
+		Process process = new ProcessBuilder("pdftohtmljs", path.getName())
+								.inheritIO()
+								.directory(new File(path.getParent()))
+								.start();
+
+		if(process.waitFor() == 0)
+			log.info("html gerado com sucesso");
+		else
+			log.info("não conseguiu gerar o html");
+	}
+
+	private File renameFile(String uf, String cidade) throws IOException {
+		String urlFile = "/home/eduardorost/Downloads";
+
+		File dairFile = new File(String.format("%s/DAIR_%s.pdf", urlFile, new SimpleDateFormat("yyyyMMdd").format(new Date())));
+		File dairNewFile = new File(String.format("%s/DAIR/%s/%s/", urlFile, uf.replace(" ",""), cidade.replace(" ","")) + dairFile.getName());
+
+		Files.createParentDirs(dairNewFile);
+		Files.move(dairFile, dairNewFile);
+
+		return dairNewFile;
 	}
 
 	private FirefoxOptions firefoxOptions() {
