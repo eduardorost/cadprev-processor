@@ -23,9 +23,9 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @SpringBootApplication
-public class CadprevApplication implements ApplicationRunner {
+public class CadprevGeneratorApplication implements ApplicationRunner {
 
-	static Logger log = Logger.getLogger(CadprevApplication.class);
+	static Logger log = Logger.getLogger(CadprevGeneratorApplication.class);
 
 	private final WebDriver DRIVER = new FirefoxDriver(firefoxOptions());
 	private static final String URL_CADPREV = "http://cadprev.previdencia.gov.br/Cadprev/faces/pages/index.xhtml";
@@ -41,7 +41,7 @@ public class CadprevApplication implements ApplicationRunner {
 	private static final String DOWNLOAD = "//*[@id=\"formTabela:tabDAIR:0:botaoImprimirDairPdf\"]";
 
 	public static void main(String[] args) {
-		SpringApplication.run(CadprevApplication.class, args);
+		SpringApplication.run(CadprevGeneratorApplication.class, args);
 	}
 
 	@Override
