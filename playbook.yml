@@ -1,0 +1,49 @@
+- hosts: all
+  sudo: true
+  tasks:
+    
+    - name: update system
+      shell: apt-get update
+    
+    - name: update system
+      shell: apt-get install zip unzip
+    
+    - name: install java jdk
+      shell: apt-get install -y default-jdk
+
+    - name: download gradle
+      shell: wget https://services.gradle.org/distributions/gradle-3.4.1-bin.zip
+
+    - name: create folder for gradle
+      shell: mkdir /opt/gradle
+
+    - name: unzip gradle to new folder
+      shell: unzip -d /opt/gradle gradle-3.4.1-bin.zip
+
+    #- name: export path gradle
+    #  shell: export PATH=$PATH:/opt/gradle/gradle-3.4.1/bin
+
+    - name: download geckodriver
+      shell: wget https://github.com/mozilla/geckodriver/releases/download/v0.18.0/geckodriver-v0.18.0-linux64.tar.gz
+
+    - name: unzip geckodriver
+      shell: tar -xvzf geckodriver*
+
+    - name: moving geckodriver to bin
+      shell: mv geckodriver /usr/local/bin/
+
+    - name: adding permission geckodriver
+      shell: chmod +x geckodriver
+      args:
+        chdir: /usr/local/bin
+
+    #- name: export geckodriver path
+    #  shell: export PATH=$PATH:/usr/local/bin/geckodriver
+
+    - copy: src=/home/eduardorost/Documents/projetos/github/selenium-test/cadprev dest=/
+
+    - name: run project
+      shell: /opt/gradle/gradle-3.4.1/bin/gradle bootRun
+      args:
+        chdir: /cadprev
+  
