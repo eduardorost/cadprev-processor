@@ -40,7 +40,7 @@
     #- name: export geckodriver path
     #  shell: export PATH=$PATH:/usr/local/bin/geckodriver
 
-    - copy: src=/home/eduardorost/Documents/projetos/github/selenium-test/cadprev dest=/
+    - copy: src=/home/eduardorost/Documents/projetos/github/selenium-test/cadprev/cadprev-generator dest=/
 
     - name: run project
       shell: /opt/gradle/gradle-3.4.1/bin/gradle bootRun
