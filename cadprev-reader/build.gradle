@@ -24,6 +24,7 @@ repositories {
 
 dependencies {
 	compile('org.springframework.boot:spring-boot-starter')
+	compile('org.springframework.boot:spring-boot-starter-logging')
 	compile('org.jsoup:jsoup:1.11.1')
 	compile('us.codecraft:xsoup:0.3.1')
 

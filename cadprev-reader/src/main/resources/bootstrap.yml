@@ -1,0 +1,5 @@
+logging:
+    file: /logs/cadprev/cadprev-reader.log
+    level.org.springframework.web: INFO
+    level:
+      root: INFO
