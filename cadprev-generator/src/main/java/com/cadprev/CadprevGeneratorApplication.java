@@ -17,6 +17,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
@@ -28,6 +29,8 @@ public class CadprevGeneratorApplication implements ApplicationRunner {
 	static Logger log = Logger.getLogger(CadprevGeneratorApplication.class);
 
 	private final WebDriver DRIVER = new FirefoxDriver(firefoxOptions());
+	private static final String FOLDER_DOWNLOAD = "/home/eduardorost/Downloads";
+	private static final String FOLDER_DOWNLOAD_DAIR = FOLDER_DOWNLOAD + "/DAIR/";
 	private static final String URL_CADPREV = "http://cadprev.previdencia.gov.br/Cadprev/faces/pages/index.xhtml";
 	private static final String CONSULTAS_PUBLICAS = "//*[@id=\"udm\"]/li[2]";
 	private static final String APLICACOES = "//*[@id=\"udm\"]/li[2]/ul/li[2]/a/label";
@@ -55,7 +58,15 @@ public class CadprevGeneratorApplication implements ApplicationRunner {
 	private void downloadAllDAIRsUnidadeFederativa() {
 		getAllOptions(UNIDADE_FEDERATIVA).forEach(uf -> {
 			getDropdown(UNIDADE_FEDERATIVA).selectByVisibleText(uf);
-			getAllOptions(CIDADE).forEach(cidade -> downloadDAIRCidade(cidade, uf));
+			try {
+				List<String> cidadesExecutadas = java.nio.file.Files.list(Paths.get(String.format("%s/%s/", FOLDER_DOWNLOAD_DAIR, uf))).map(folder -> folder.getFileName().toString()).collect(Collectors.toList());
+				getAllOptions(CIDADE).forEach(cidade -> {
+					if(!cidadesExecutadas.contains(cidade.replace(" ","")))
+						downloadDAIRCidade(cidade, uf);
+				});
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
 		});
 	}
 
@@ -97,10 +108,8 @@ public class CadprevGeneratorApplication implements ApplicationRunner {
 	}
 
 	private File renameFile(String uf, String cidade) throws IOException {
-		String urlFile = "/home/eduardorost/Downloads";
-
-		File dairFile = new File(String.format("%s/DAIR_%s.pdf", urlFile, new SimpleDateFormat("yyyyMMdd").format(new Date())));
-		File dairNewFile = new File(String.format("%s/DAIR/%s/%s/", urlFile, uf.replace(" ",""), cidade.replace(" ","")) + dairFile.getName());
+		File dairFile = new File(String.format("%s/DAIR_%s.pdf", FOLDER_DOWNLOAD, new SimpleDateFormat("yyyyMMdd").format(new Date())));
+		File dairNewFile = new File(String.format("%s/%s/", FOLDER_DOWNLOAD_DAIR, uf.replace(" ",""), cidade.replace(" ","")) + dairFile.getName());
 
 		Files.createParentDirs(dairNewFile);
 		Files.move(dairFile, dairNewFile);
