@@ -19,6 +19,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -56,17 +57,33 @@ public class CadprevGeneratorApplication implements ApplicationRunner {
 	}
 
 	private void downloadAllDAIRsUnidadeFederativa() {
+		List<String> estadosExecutados = new ArrayList<>();
+		try {
+			estadosExecutados = java.nio.file.Files.list(Paths.get(String.format("%s/", FOLDER_DOWNLOAD_DAIR))).map(folder -> folder.getFileName().toString()).collect(Collectors.toList());
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+
+		List<String> finalEstadosExecutados = estadosExecutados.stream().sorted().collect(Collectors.toList()).subList(0, estadosExecutados.size() - 1);
+
 		getAllOptions(UNIDADE_FEDERATIVA).forEach(uf -> {
+			if(finalEstadosExecutados.contains(uf.replace(" ","")))
+				return;
+
 			getDropdown(UNIDADE_FEDERATIVA).selectByVisibleText(uf);
+
+			List<String> cidadesExecutadas = new ArrayList<>();
 			try {
-				List<String> cidadesExecutadas = java.nio.file.Files.list(Paths.get(String.format("%s/%s/", FOLDER_DOWNLOAD_DAIR, uf))).map(folder -> folder.getFileName().toString()).collect(Collectors.toList());
-				getAllOptions(CIDADE).forEach(cidade -> {
-					if(!cidadesExecutadas.contains(cidade.replace(" ","")))
-						downloadDAIRCidade(cidade, uf);
-				});
+				cidadesExecutadas = java.nio.file.Files.list(Paths.get(String.format("%s/%s/", FOLDER_DOWNLOAD_DAIR, uf))).map(folder -> folder.getFileName().toString()).collect(Collectors.toList());
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
+
+			List<String> finalCidadesExecutadas = cidadesExecutadas;
+			getAllOptions(CIDADE).forEach(cidade -> {
+                if(!finalCidadesExecutadas.contains(cidade.replace(" ","")))
+                    downloadDAIRCidade(cidade, uf);
+            });
 		});
 	}
 
@@ -85,31 +102,17 @@ public class CadprevGeneratorApplication implements ApplicationRunner {
 
 		try {
 			clickElement(DOWNLOAD);
-			generateHtml(renameFile(uf, cidade));
+			renameFile(uf, cidade);
 		} catch (NoSuchElementException ex) {
 			log.info(cidade + " não tem arquivo disponível");
 		} catch (IOException e) {
 			log.info(String.format("erro ao renomear arquivo cidade %s estado %s", cidade, uf), e);
-		} catch (InterruptedException e) {
-			log.info("não conseguiu gerar o html");
 		}
-	}
-
-	private void generateHtml(File path) throws IOException, InterruptedException {
-		Process process = new ProcessBuilder("pdftohtmljs", path.getName())
-								.inheritIO()
-								.directory(new File(path.getParent()))
-								.start();
-
-		if(process.waitFor() == 0)
-			log.info("html gerado com sucesso");
-		else
-			log.info("não conseguiu gerar o html");
 	}
 
 	private File renameFile(String uf, String cidade) throws IOException {
 		File dairFile = new File(String.format("%s/DAIR_%s.pdf", FOLDER_DOWNLOAD, new SimpleDateFormat("yyyyMMdd").format(new Date())));
-		File dairNewFile = new File(String.format("%s/%s/", FOLDER_DOWNLOAD_DAIR, uf.replace(" ",""), cidade.replace(" ","")) + dairFile.getName());
+		File dairNewFile = new File(String.format("%s/%s/%s/", FOLDER_DOWNLOAD_DAIR, uf.replace(" ",""), cidade.replace(" ","")) + dairFile.getName());
 
 		Files.createParentDirs(dairNewFile);
 		Files.move(dairFile, dairNewFile);

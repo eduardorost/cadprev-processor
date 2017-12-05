@@ -1,1 +1,1 @@
-include "cadprev-generator", "cadprev-reader"
+include "cadprev-generator", "cadprev-email-reader", "cadprev-reader"

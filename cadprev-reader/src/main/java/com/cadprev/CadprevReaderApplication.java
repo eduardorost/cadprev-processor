@@ -1,26 +1,36 @@
 package com.cadprev;
 
+import com.cadprev.entities.DairEntity;
+import com.cadprev.entities.FormaGestaoAssessoramentoEntity;
+import com.cadprev.repositories.DairRepository;
 import org.apache.log4j.Logger;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import us.codecraft.xsoup.Xsoup;
 
-import javax.xml.parsers.ParserConfigurationException;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @SpringBootApplication
 public class CadprevReaderApplication implements ApplicationRunner {
 
 	static Logger log = Logger.getLogger(CadprevReaderApplication.class);
+
+	@Autowired
+	private DairRepository dairRepository;
 
 	private static final String FOLDER = "/home/eduardorost/Downloads/DAIR/";
 	
@@ -45,10 +55,9 @@ public class CadprevReaderApplication implements ApplicationRunner {
 	private void processCityFile(Path pathCity) {
 		log.info(pathCity);
 		try {
-			readHtml(
+			readPdf(
 					Files
 						.list(pathCity)
-						.filter(path -> path.toString().endsWith(".html"))
 						.findFirst()
 			);
 		} catch (Exception e) {
@@ -56,111 +65,70 @@ public class CadprevReaderApplication implements ApplicationRunner {
 		}
 	}
 
-	private void readHtml(Optional<Path> optionalPath) throws IOException, ParserConfigurationException {
+	private void readPdf(Optional<Path> optionalPath) throws IOException {
 		if(!optionalPath.isPresent())
 		{
 			log.info("não encontrou arquivo para cidade");
 			return;
 		}
 
-		Document doc = Jsoup.parse(new String(Files.readAllBytes(optionalPath.get())));
-		buildDadosEnte(doc);
-		buildDadosRepresentanteEnte(doc);
-		buildUnidadeGestora(doc);
-		buildRepresentanteUnidadeGestora(doc);
-		buildFormaGestaoAssessoramento(doc);
-		String totalRecursosRPPS = getTotalRecursosRPPS(doc);
+		try (PDDocument document = PDDocument.load(optionalPath.get().toFile())) {
+			List<String> lines = getPdfLines(document);
+
+			DairEntity dairEntity = new DairEntity();
+
+			processarDadosEnte(lines, dairEntity);
+			processarDadosRepresentanteEnte(lines, dairEntity);
+			processarUnidadeGestoraAndRepresentante(lines, dairEntity);
+			processarFormaGestaoAssessoramento(lines, dairEntity);
+
+			dairEntity.setTotalRecursosRPPS(getTotalRecursosRPPS(lines));
+
+			dairRepository.save(dairEntity);
+		} catch (Exception e) {
+			log.info("erro processar arquivo", e);
+		}
 	}
 
-	private void buildDadosEnte(Document doc) {
-		String section = "DADOS DO ENTE";
+	private void processarDadosEnte(List<String> lines, DairEntity dairEntity) {
+		ArrayList<String> headersAndInfos = getSectionInformation(lines, "DEMONSTRATIVO DE APLICAÇÕES E INVESTIMENTOS DOS RECURSOS - DAIR", "DADOS DO REPRESENTANTE LEGAL DO ENTE", false);
 
-		String nome = getElementText(doc, section, 6);
-		String uf = getElementText(doc, section, 19);
-        String cnpj = getElementText(doc, section, 21);
+		String[] split = headersAndInfos.get(0).split(":");
+		ArrayList<String> infos = getInfos(9, null, headersAndInfos);
+		infos.add(split[1]);
 
-		String endereco = getElementText(doc, section, 15);
-        //TODO: PEGAR UM EXEMPLO
-        //String complemento = getElementText(doc, section, );
-
-		String bairro = getElementText(doc, section, 17);
-        String cep = getElementText(doc, section, 20);
-
-		String telefone = getElementText(doc, section, 16);
-        String paginaEletronica = getElementText(doc, section, 18);
-		String email = getElementText(doc, section, 18);
-
+		dairEntity.setCidade(split[1]);
+		dairEntity.setUf(getInfo("[A-Z]{2}", infos));
+		dairEntity.setInfosEnte(infos.stream().collect(Collectors.joining(", ")));
 	}
 
-	private void buildDadosRepresentanteEnte(Document doc) {
-		String section = "DADOS DO REPRESENTANTE LEGAL DO ENTE";
+	private void processarDadosRepresentanteEnte(List<String> lines, DairEntity dairEntity) {
+		ArrayList<String> headersAndInfos = getSectionInformation(lines, "DADOS DO REPRESENTANTE LEGAL DO ENTE", "ENTE", false);
 
-		String nome = getNodeElementText(doc, section, 34, 0);
-		String cpf = getNodeElementText(doc, section, 34, 2);
-
-        String cargo = getElementText(doc, section, 30);
-        String complementoCargo = getElementText(doc, section, 33);
-
-        String email = getNodeElementText(doc, section, 31, 2);
-		String dataInicioGestao = getNodeElementText(doc, section, 31, 0);
-
-		String telefone = getElementText(doc, section, 32);
-        //TODO: PEGAR UM EXEMPLO
-        //String ramal = getElementText(doc, section, );
-
-		String rppsEmExtincao = getElementText(doc, section, 38);
+		dairEntity.setInfosRepresentanteEnte(getInfosAsString(7, null, headersAndInfos));
 	}
 
-    //TODO: TEXTAR COM RONDONIA
-	private void buildUnidadeGestora(Document doc) {
-		String section = "DADOS DA UNIDADE GESTORA";
+	private void processarUnidadeGestoraAndRepresentante(List<String> lines, DairEntity dairEntity) {
+		ArrayList<String> headersAndInfos = getSectionInformation(lines, "DADOS DA UNIDADE GESTORA", "MINISTÉRIO DA PREVIDÊNCIA SOCIAL - MPS", true);
 
-		String cnpj = getNodeElementText(doc, section, 32, 0);
-		String razaoSocial = getNodeElementText(doc, section, 32, 2);
-
-        String endereco = getNodeElementText(doc, section, 33, 0);
-        String complemento = getNodeElementText(doc, section, 33, 2);
-
-		String bairro = getNodeElementText(doc, section, 34, 0);
-		String cep = getNodeElementText(doc, section, 34, 2);
-		String email = getNodeElementText(doc, section, 34, 4);
-        String paginaEletronica = getNodeElementText(doc, section, 34, 6);
-
-		String telefone = getNodeElementText(doc, section, 35, 0);
-		String ramal = getNodeElementText(doc, section, 35, 2);
-        String natureza = getNodeElementText(doc, section, 35, 4);
-        String descricao = getNodeElementText(doc, section, 35, 6);
+		dairEntity.setInfosUG(getInfosAsString(25, 29, headersAndInfos));
+		dairEntity.setInfosRUG(getInfosAsString(29, 31, headersAndInfos));
 	}
 
-	private void buildRepresentanteUnidadeGestora(Document doc) {
-		String section = "DADOS DO REPRESENTANTE LEGAL DA UNIDADE GESTORA";
+	private void processarFormaGestaoAssessoramento(List<String> lines, DairEntity dairEntity) {
+		ArrayList<String> formaGestao = getSectionInformation(lines, "FORMA DE GESTÃO E ASSESSORAMENTO", "MINISTÉRIO DA PREVIDÊNCIA SOCIAL - MPS", true);
 
-		String cpf = getNodeElementText(doc, section, 36, 0);
-		String nome = getNodeElementText(doc, section, 36, 2);
+		if(formaGestao.contains("Nenhum registro informado."))
+			return;
 
-		String cargo = getNodeElementText(doc, section, 37, 0);
-		String complementoCargo = getNodeElementText(doc, section, 37, 2);
-        String dataInicioGestao = getNodeElementText(doc, section, 37, 4);
-        String email = getNodeElementText(doc, section, 37, 6);
-
-		String telefone = getNodeElementText(doc, section, 38, 0);
-		String ramal = getNodeElementText(doc, section, 38, 2);
-		String vinculo = getNodeElementText(doc, section, 38, 4);
-		String descricao = getNodeElementText(doc, section, 38, 6);
+		//dairEntity.setFormaGestaoAssessoramentoEntity(processarFormaGestaoAssessoramentoContratoVigente(formaGestao));
 	}
 
-	private void buildFormaGestaoAssessoramento(Document doc) {
-		String section = "FORMA DE GESTÃO E ASSESSORAMENTO";
+	private FormaGestaoAssessoramentoEntity processarFormaGestaoAssessoramentoContratoVigente(List<String> formaGestao) {
+		formaGestao.remove("Informações do contrato vigente");
+		FormaGestaoAssessoramentoEntity formaGestaoAssessoramentoEntity = new FormaGestaoAssessoramentoEntity();
 
-		String formaGestaoRecursoRPPS =  getElementText(doc, section, 12);
-		String contratacaoObjetivandoPrestacaoServicosConsultoria =  getElementText(doc, section, 11);
-
-		if(doc.getElementById(getPageSection(doc, section)).getElementsMatchingText("Nenhum registro informado.").isEmpty());
-			buildFormaGestaoAssessoramentoContratoVigente(section, doc);
-	}
-
-	private void buildFormaGestaoAssessoramentoContratoVigente(String section, Document doc) {
-        String cnpj = getElementText(doc, section, 12);
+        /*String cnpj = getElementText(doc, section, 12);
         String razaoSocial = getElementText(doc, section, 22);
 
         String dataRegistroCVM = getElementText(doc, section, 14);
@@ -180,40 +148,48 @@ public class CadprevReaderApplication implements ApplicationRunner {
         ////TODO: VER UM EXEMPLO
         //String objetoContratacao = getElementText(doc, section, 12);
         //String modalidadeProcedimentoLicitacao = getElementText(doc, section, );
-        //String tipoLicitacao = getElementText(doc, section, );
+        //String tipoLicitacao = getElementText(doc, section, );*/
+
+        return formaGestaoAssessoramentoEntity;
 	}
 
-	private String getTotalRecursosRPPS(Document doc) {
-		Element page = doc.select("div:contains(CARTEIRA DE INVESTIMENTOS)").last().parent().parent();
-		return getElementWithPageId(doc, page.id(), 49).text();
+	private String getTotalRecursosRPPS(List<String> lines) {
+		ArrayList<String> infos = getSectionInformation(lines, "TOTAL DE RECURSOS DO RPPS PARA CÔMPUTO DOS LIMITES:", "MINISTÉRIO DA PREVIDÊNCIA SOCIAL - MPS", true);
+		return infos.get(infos.size() - 1);
 	}
 
-	private String getElementText(Document doc, String section, int index) {
-	    try {
-            return getElement(doc, section, index).text().replaceAll("\n", "");
-        } catch (Exception e) {
-	        return null;
-        }
+	private ArrayList<String> getSectionInformation(List<String> lines, String start, String end, boolean removeLast) {
+		List<String> strings = lines.subList(lines.indexOf(start) + 1, lines.size());
+		return new ArrayList<>(strings.subList(0, removeLast ? strings.indexOf(end) - 1 : strings.indexOf(end)));
 	}
 
-	private String getNodeElementText(Document doc, String section, int index, int nodeIndex) {
-        try {
-		    return getElement(doc, section, index).childNode(nodeIndex).toString().replaceAll("\n", "");
-        } catch (Exception e) {
-            return null;
-        }
+	private ArrayList<String> getHeaders(int start, int end, ArrayList<String> headersAndInfos) {
+		return new ArrayList<>(headersAndInfos.subList(start, end).stream().map(s -> s.split(":")).flatMap(Arrays::stream).collect(Collectors.toList()));
 	}
 
-	private Element getElement(Document doc, String section, int index) {
-		return getElementWithPageId(doc, getPageSection(doc, section), index);
+	private ArrayList<String> getInfos(int start, Integer end, ArrayList<String> headersAndInfos) {
+		return new ArrayList<>(headersAndInfos.subList(start, end != null ? end : headersAndInfos.size()));
 	}
 
-	private Element getElementWithPageId(Document doc, String pageId, int index) {
-		return Xsoup.compile("//*[@id=\""+pageId+"\"]/div[1]/div["+index+"]").evaluate(doc).getElements().first();
+	private String getInfosAsString(int start, Integer end, ArrayList<String> headersAndInfos) {
+		return headersAndInfos.subList(start, end != null ? end : headersAndInfos.size()).stream().collect(Collectors.joining(", "));
 	}
 
-	private String getPageSection(Document doc, String section) {
-		return doc.select("div:contains("+section+")").get(1).id();
+	private String getInfo(String pattern, ArrayList<String> strings) {
+		Pattern p = Pattern.compile(pattern);
+		Optional<Matcher> matcherOptional = strings.stream().map(p::matcher)
+				.filter(Matcher::matches)
+				.findFirst();
+
+		if (matcherOptional.isPresent() && matcherOptional.get().matches())
+			return matcherOptional.get().group();
+
+		return "";
+	}
+
+	private List<String> getPdfLines(PDDocument document) throws IOException {
+		PDFTextStripper pdfTextStripper = new PDFTextStripper();
+		return Arrays.asList(pdfTextStripper.getText(document).split(pdfTextStripper.getLineSeparator()));
 	}
 
 }

@@ -13,7 +13,7 @@ buildscript {
 apply plugin: 'java'
 apply plugin: 'org.springframework.boot'
 
-group = 'com.cadprev'
+group = 'com.cadprev.reader.email'
 version = '0.0.1-SNAPSHOT'
 sourceCompatibility = 1.8
 
@@ -21,9 +21,10 @@ repositories {
 	mavenCentral()
 }
 
+
 dependencies {
-	compile('org.springframework.boot:spring-boot-starter-data-jpa')
-	compile('mysql:mysql-connector-java:6.0.6')
+	compile('org.springframework.boot:spring-boot-starter')
+	compile('org.springframework.boot:spring-boot-starter-logging')
 	compile('org.apache.pdfbox:pdfbox:2.0.8')
 
 	testCompile('org.springframework.boot:spring-boot-starter-test')
