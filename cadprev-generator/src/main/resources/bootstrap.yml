@@ -1,5 +1,0 @@
-logging:
-    file: /logs/cadprev/cadprev-generator.log
-    level.org.springframework.web: INFO
-    level:
-      root: INFO

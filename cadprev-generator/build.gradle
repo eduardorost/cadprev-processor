@@ -23,7 +23,8 @@ repositories {
 
 
 dependencies {
-	compile('org.springframework.boot:spring-boot-starter')
+	compile('org.springframework.boot:spring-boot-starter-data-jpa')
+	compile('mysql:mysql-connector-java:6.0.6')
 	compile('org.springframework.boot:spring-boot-starter-logging')
 
 	compile('org.seleniumhq.selenium:selenium-api:3.6.0')

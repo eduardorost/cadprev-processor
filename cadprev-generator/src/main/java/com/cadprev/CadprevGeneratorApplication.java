@@ -1,5 +1,8 @@
 package com.cadprev;
 
+import com.cadprev.entities.ProcessamentoDairEntity;
+import com.cadprev.repositories.ProcessamentoDairRepository;
+import com.google.common.collect.Lists;
 import com.google.common.io.Files;
 import org.apache.log4j.Logger;
 import org.openqa.selenium.By;
@@ -10,6 +13,7 @@ import org.openqa.selenium.firefox.FirefoxDriver;
 import org.openqa.selenium.firefox.FirefoxOptions;
 import org.openqa.selenium.firefox.FirefoxProfile;
 import org.openqa.selenium.support.ui.Select;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
@@ -29,7 +33,7 @@ public class CadprevGeneratorApplication implements ApplicationRunner {
 
 	static Logger log = Logger.getLogger(CadprevGeneratorApplication.class);
 
-	private final WebDriver DRIVER = new FirefoxDriver(firefoxOptions());
+	private WebDriver DRIVER = new FirefoxDriver(firefoxOptions());
 	private static final String FOLDER_DOWNLOAD = "/home/eduardorost/Downloads";
 	private static final String FOLDER_DOWNLOAD_DAIR = FOLDER_DOWNLOAD + "/DAIR/";
 	private static final String URL_CADPREV = "http://cadprev.previdencia.gov.br/Cadprev/faces/pages/index.xhtml";
@@ -44,44 +48,52 @@ public class CadprevGeneratorApplication implements ApplicationRunner {
 	private static final String CONSULTAR = "//*[@id=\"form:botaoConsultar\"]";
 	private static final String DOWNLOAD = "//*[@id=\"formTabela:tabDAIR:0:botaoImprimirDairPdf\"]";
 
+	@Autowired
+	private ProcessamentoDairRepository processamentoDairRepository;
+
 	public static void main(String[] args) {
 		SpringApplication.run(CadprevGeneratorApplication.class, args);
 	}
 
 	@Override
-	public void run(ApplicationArguments args) throws Exception {
-		DRIVER.get(URL_CADPREV);
+	public void run(ApplicationArguments args) {
+		run();
+	}
 
-		openDemonstrativosDAIR();
-		downloadAllDAIRsUnidadeFederativa();
+	private void run() {
+		try {
+			//processamentoDairRepository.deleteAll();
+			DRIVER.get(URL_CADPREV);
+
+			openDemonstrativosDAIR();
+			downloadAllDAIRsUnidadeFederativa();
+		} catch (Exception e) {
+			log.info("erro na aplicação", e);
+			try {
+				DRIVER.close();
+				Thread.sleep(60000);
+			} catch (Exception e1) {
+				log.info("erro ao fechar o driver", e1);
+			}
+			DRIVER = new FirefoxDriver(firefoxOptions());
+			run();
+		}
 	}
 
 	private void downloadAllDAIRsUnidadeFederativa() {
-		List<String> estadosExecutados = new ArrayList<>();
-		try {
-			estadosExecutados = java.nio.file.Files.list(Paths.get(String.format("%s/", FOLDER_DOWNLOAD_DAIR))).map(folder -> folder.getFileName().toString()).collect(Collectors.toList());
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-
-		List<String> finalEstadosExecutados = estadosExecutados.stream().sorted().collect(Collectors.toList()).subList(0, estadosExecutados.size() - 1);
+		List<String> estadosExecutados = processamentoDairRepository.findAllUF();
+		if(estadosExecutados.size() > 0)
+			estadosExecutados.remove(estadosExecutados.size() - 1);
 
 		getAllOptions(UNIDADE_FEDERATIVA).forEach(uf -> {
-			if(finalEstadosExecutados.contains(uf.replace(" ","")))
+			if(estadosExecutados.contains(uf))
 				return;
 
 			getDropdown(UNIDADE_FEDERATIVA).selectByVisibleText(uf);
 
-			List<String> cidadesExecutadas = new ArrayList<>();
-			try {
-				cidadesExecutadas = java.nio.file.Files.list(Paths.get(String.format("%s/%s/", FOLDER_DOWNLOAD_DAIR, uf))).map(folder -> folder.getFileName().toString()).collect(Collectors.toList());
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-
-			List<String> finalCidadesExecutadas = cidadesExecutadas;
+			List<String> cidadesExecutadas = processamentoDairRepository.findAllCidadesBYUF(uf);
 			getAllOptions(CIDADE).forEach(cidade -> {
-                if(!finalCidadesExecutadas.contains(cidade.replace(" ","")))
+                if(!cidadesExecutadas.contains(cidade))
                     downloadDAIRCidade(cidade, uf);
             });
 		});
@@ -108,11 +120,19 @@ public class CadprevGeneratorApplication implements ApplicationRunner {
 		} catch (IOException e) {
 			log.info(String.format("erro ao renomear arquivo cidade %s estado %s", cidade, uf), e);
 		}
+
+		processamentoDairRepository.save(new ProcessamentoDairEntity(cidade, uf));
 	}
 
 	private File renameFile(String uf, String cidade) throws IOException {
 		File dairFile = new File(String.format("%s/DAIR_%s.pdf", FOLDER_DOWNLOAD, new SimpleDateFormat("yyyyMMdd").format(new Date())));
 		File dairNewFile = new File(String.format("%s/%s/%s/", FOLDER_DOWNLOAD_DAIR, uf.replace(" ",""), cidade.replace(" ","")) + dairFile.getName());
+
+		try {
+			Thread.sleep(5000);
+		} catch (InterruptedException e) {
+			log.info("erro ao dormir thread");
+		}
 
 		Files.createParentDirs(dairNewFile);
 		Files.move(dairFile, dairNewFile);
