@@ -3,6 +3,7 @@ package com.cadprev;
 import com.cadprev.entities.DairEntity;
 import com.cadprev.entities.FormaGestaoAssessoramentoEntity;
 import com.cadprev.repositories.DairRepository;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.log4j.Logger;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
@@ -16,10 +17,9 @@ import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Optional;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -81,10 +81,11 @@ public class CadprevReaderApplication implements ApplicationRunner {
 			processarDadosRepresentanteEnte(lines, dairEntity);
 			processarUnidadeGestoraAndRepresentante(lines, dairEntity);
 			processarFormaGestaoAssessoramento(lines, dairEntity);
-
 			dairEntity.setTotalRecursosRPPS(getTotalRecursosRPPS(lines));
 
-			dairRepository.save(dairEntity);
+			DairEntity save = dairRepository.save(dairEntity);
+
+			save.getId();
 		} catch (Exception e) {
 			log.info("erro processar arquivo", e);
 		}
@@ -121,36 +122,32 @@ public class CadprevReaderApplication implements ApplicationRunner {
 		if(formaGestao.contains("Nenhum registro informado."))
 			return;
 
-		//dairEntity.setFormaGestaoAssessoramentoEntity(processarFormaGestaoAssessoramentoContratoVigente(formaGestao));
+		dairEntity.setFormaGestaoAssessoramentoEntity(processarFormaGestaoAssessoramentoContratoVigente(formaGestao));
 	}
 
 	private FormaGestaoAssessoramentoEntity processarFormaGestaoAssessoramentoContratoVigente(List<String> formaGestao) {
 		formaGestao.remove("Informações do contrato vigente");
 		FormaGestaoAssessoramentoEntity formaGestaoAssessoramentoEntity = new FormaGestaoAssessoramentoEntity();
 
-        /*String cnpj = getElementText(doc, section, 12);
-        String razaoSocial = getElementText(doc, section, 22);
+		formaGestaoAssessoramentoEntity.setPrazoVigencia(Integer.valueOf(formaGestao.stream().filter(StringUtils::isNumeric).findFirst().orElse("0")));
+		formaGestaoAssessoramentoEntity.setDataAssinaturaContrato(getInfo("([0-9]{2}\\/){0,2}([0-9]{4})", formaGestao.stream().filter(s -> s.contains("Data de assinatura do Contrato")).findFirst().orElse("")));
 
-        String dataRegistroCVM = getElementText(doc, section, 14);
-        String cpfRepresentante = getElementText(doc, section, 16);
-        String nomeRepresentante = getElementText(doc, section, 24);
+		try {
+			SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
+			Calendar c = Calendar.getInstance();
+			c.setTime(sdf.parse(formaGestaoAssessoramentoEntity.getDataAssinaturaContrato()));
+			c.add(Calendar.MONTH, formaGestaoAssessoramentoEntity.getPrazoVigencia());
+			formaGestaoAssessoramentoEntity.setDataFinalContrato(sdf.format(c.getTime()));
+		} catch (ParseException e) {
+			log.error("Erro ao converter dataAssinaturaContrato", e);
+		}
 
-        String dataAssinaturaContrato = getElementText(doc, section, 18);
-        String prazoVigencia = getElementText(doc, section, 10);
-        String valorContratualMensal = getElementText(doc, section, 29);
+		formaGestaoAssessoramentoEntity.setRazaoSocial(formaGestao.stream().filter(s -> s.contains("Razão Social:")).findFirst().orElse("").replace("Razão Social:", ""));
+		formaGestaoAssessoramentoEntity.setValorContratualMensal(formaGestao.stream().filter(s -> s.contains("Valor contratual Mensal (R$):")).findFirst().orElse("").replace("Valor contratual Mensal (R$):", ""));
 
-        String numeroProcessoAdministrativo = getElementText(doc, section, 26);
+		formaGestaoAssessoramentoEntity.setDetalhes(formaGestao.stream().collect(Collectors.joining(", ")));
 
-        String cpfResponsavelTecnico = getElementText(doc, section, 31);
-        String nomeResponsavelTecnico = getElementText(doc, section, 33);
-        String dataRegistroResponsavelTecnico = getElementText(doc, section, 35);
-
-        ////TODO: VER UM EXEMPLO
-        //String objetoContratacao = getElementText(doc, section, 12);
-        //String modalidadeProcedimentoLicitacao = getElementText(doc, section, );
-        //String tipoLicitacao = getElementText(doc, section, );*/
-
-        return formaGestaoAssessoramentoEntity;
+		return  formaGestaoAssessoramentoEntity;
 	}
 
 	private String getTotalRecursosRPPS(List<String> lines) {
@@ -175,14 +172,23 @@ public class CadprevReaderApplication implements ApplicationRunner {
 		return headersAndInfos.subList(start, end != null ? end : headersAndInfos.size()).stream().collect(Collectors.joining(", "));
 	}
 
-	private String getInfo(String pattern, ArrayList<String> strings) {
+	private String getInfo(String pattern, List<String> strings) {
 		Pattern p = Pattern.compile(pattern);
-		Optional<Matcher> matcherOptional = strings.stream().map(p::matcher)
+		Matcher matcher = strings.stream().map(p::matcher)
 				.filter(Matcher::matches)
-				.findFirst();
+				.findFirst().orElse(null);
 
-		if (matcherOptional.isPresent() && matcherOptional.get().matches())
-			return matcherOptional.get().group();
+		if (matcher != null && matcher.matches())
+			return matcher.group();
+
+		return "";
+	}
+
+	private String getInfo(String pattern, String string) {
+		Matcher m = Pattern.compile(pattern).matcher(string);
+
+		if (m.find())
+			return m.group();
 
 		return "";
 	}

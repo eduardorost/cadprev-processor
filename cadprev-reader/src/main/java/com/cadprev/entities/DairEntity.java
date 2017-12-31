@@ -1,8 +1,6 @@
 package com.cadprev.entities;
 
-import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.Id;
+import javax.persistence.*;
 
 @Entity(name = "dair")
 public class DairEntity {
@@ -13,13 +11,19 @@ public class DairEntity {
 
     private String cidade;
     private String uf;
+    @Column(columnDefinition="TEXT")
     private String infosEnte;
+    @Column(columnDefinition="TEXT")
     private String infosRepresentanteEnte;
+    @Column(columnDefinition="TEXT")
     private String infosUG;
+    @Column(columnDefinition="TEXT")
     private String infosRUG;
     private String totalRecursosRPPS;
 
-    //private FormaGestaoAssessoramentoEntity formaGestaoAssessoramentoEntity;
+    @OneToOne(cascade = CascadeType.ALL)
+    @JoinColumn(name = "forma_gestao_assessoramento_id")
+    private FormaGestaoAssessoramentoEntity formaGestaoAssessoramentoEntity;
 
 
     public Long getId() {
@@ -84,5 +88,13 @@ public class DairEntity {
 
     public void setTotalRecursosRPPS(String totalRecursosRPPS) {
         this.totalRecursosRPPS = totalRecursosRPPS;
+    }
+
+    public FormaGestaoAssessoramentoEntity getFormaGestaoAssessoramentoEntity() {
+        return formaGestaoAssessoramentoEntity;
+    }
+
+    public void setFormaGestaoAssessoramentoEntity(FormaGestaoAssessoramentoEntity formaGestaoAssessoramentoEntity) {
+        this.formaGestaoAssessoramentoEntity = formaGestaoAssessoramentoEntity;
     }
 }
