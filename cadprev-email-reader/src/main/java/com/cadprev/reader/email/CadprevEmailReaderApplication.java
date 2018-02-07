@@ -33,28 +33,64 @@ public class CadprevEmailReaderApplication implements ApplicationRunner {
 	@Override
 	public void run(ApplicationArguments args) throws IOException, InterruptedException {
 		List<Email> emailList = Files.list(Paths.get(FOLDER)).map(this::findUFs).flatMap(List::stream).collect(Collectors.toList());
-		generateCSV(emailList);
+		//generateCSV(emailList);
 	}
 
+	private String getEmailInfosRUG(List<String> lines) {
+		ArrayList<String> headersAndInfos = getSectionInformation(lines, "DADOS DA UNIDADE GESTORA", "MINISTÉRIO DA PREVIDÊNCIA SOCIAL - MPS", true);
+		ArrayList<String> infosRUG = getInfos(29, 31, headersAndInfos);
+		List<String> collect = infosRUG.stream().map(s -> s.split(" ")).flatMap(Arrays::stream).collect(Collectors.toList());
+		String email = getInfo("[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+", new ArrayList<>(collect));
 
-	private List<Email> findUFs(Path pathUF) {
-		log.info("--------------------"+pathUF);
-		List<Email> emailList = new ArrayList<>();
+		if(!StringUtils.isEmpty(email))
+			return email;
+
+		return null;
+	}
+
+	private String getEmailRepresentanteEnte(List<String> lines) {
+		ArrayList<String> headersAndInfos = getSectionInformation(lines, "DADOS DO REPRESENTANTE LEGAL DO ENTE", "ENTE", false);
 		try {
-			emailList = Files.list(pathUF).map(this::processCityFile).collect(Collectors.toList());
-			emailList.removeAll(Collections.singleton(null));
-		} catch (IOException e) {
-			e.printStackTrace();
+			return headersAndInfos.get(8).substring(10);
+		} catch (Exception ex) {
+			return null;
+		}
+	}
+
+	private Email readPdf(Optional<Path> optionalPath) throws IOException {
+		if(!optionalPath.isPresent())
+		{
+			log.info("não encontrou arquivo para cidade");
 		}
 
-		return emailList;
+		//RETIRAR EMAIL infosrug e infos_representante_entes
 
+		try (PDDocument document = PDDocument.load(optionalPath.get().toFile())) {
+			List<String> lines = getPdfLines(document);
+
+			ArrayList<String> headersAndInfosENTE = getSectionInformation(lines, "DEMONSTRATIVO DE APLICAÇÕES E INVESTIMENTOS DOS RECURSOS - DAIR", "DADOS DO REPRESENTANTE LEGAL DO ENTE", false);
+			String cidade = headersAndInfosENTE.get(0).split(":")[1];
+			String uf = headersAndInfosENTE.stream().filter(s -> s.length() == 2).findFirst().orElse("");
+			String emailInfosRUG = getEmailInfosRUG(lines);
+			String emailRepresentanteEnte = getEmailRepresentanteEnte(lines);
+
+
+		} catch (Exception e) {
+			log.info("erro processar arquivo", e);
+		}
+
+		return null;
+	}
+
+	private List<String> getPdfLines(PDDocument document) throws IOException {
+		PDFTextStripper pdfTextStripper = new PDFTextStripper();
+		return Arrays.asList(pdfTextStripper.getText(document).split(pdfTextStripper.getLineSeparator()));
 	}
 
 	private void generateCSV(List<Email> emailList) throws IOException {
 		String csv = emailList.stream().map(Email::toString).collect(Collectors.joining(System.getProperty("line.separator")));
 
-		try(PrintWriter out = new PrintWriter(BASE + "/emails.csv")){
+		try(PrintWriter out = new PrintWriter(BASE + "/Email.csv")){
 			out.println(csv);
 		}
 	}
@@ -64,8 +100,8 @@ public class CadprevEmailReaderApplication implements ApplicationRunner {
 		try {
 			return readPdf(
 					Files
-						.list(pathCity)
-						.findFirst()
+							.list(pathCity)
+							.findFirst()
 			);
 		} catch (Exception e) {
 			log.info(e.getMessage());
@@ -74,31 +110,17 @@ public class CadprevEmailReaderApplication implements ApplicationRunner {
 		return null;
 	}
 
-	private Email readPdf(Optional<Path> optionalPath) throws IOException {
-		if(!optionalPath.isPresent())
-		{
-			log.info("não encontrou arquivo para cidade");
+	private List<Email> findUFs(Path pathUF) {
+		log.info("--------------------"+pathUF);
+		List<Email> emailList = new ArrayList<>();
+		try {
+			emailList = Files.list(pathUF).map(this::processCityFile).filter(Objects::nonNull).collect(Collectors.toList());
+		} catch (IOException e) {
+			e.printStackTrace();
 		}
 
-		try (PDDocument document = PDDocument.load(optionalPath.get().toFile())) {
-			List<String> lines = getPdfLines(document);
+		return emailList;
 
-			ArrayList<String> headersAndInfosENTE = getSectionInformation(lines, "DEMONSTRATIVO DE APLICAÇÕES E INVESTIMENTOS DOS RECURSOS - DAIR", "DADOS DO REPRESENTANTE LEGAL DO ENTE", false);
-			String cidade = headersAndInfosENTE.get(0).split(":")[1];
-			String uf = headersAndInfosENTE.stream().filter(s -> s.length() == 2).findFirst().orElse("");
-
-			ArrayList<String> headersAndInfos = getSectionInformation(lines, "DADOS DA UNIDADE GESTORA", "MINISTÉRIO DA PREVIDÊNCIA SOCIAL - MPS", true);
-			ArrayList<String> infosRUG = getInfos(29, 31, headersAndInfos);
-			List<String> collect = infosRUG.stream().map(s -> s.split(" ")).flatMap(Arrays::stream).collect(Collectors.toList());
-			String email = getInfo("[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+", new ArrayList<>(collect));
-
-			if(!StringUtils.isEmpty(email))
-				return new Email(uf, cidade, email);
-		} catch (Exception e) {
-			log.info("erro processar arquivo", e);
-		}
-
-		return null;
 	}
 
 	private ArrayList<String> getSectionInformation(List<String> lines, String start, String end, boolean removeLast) {
@@ -120,11 +142,6 @@ public class CadprevEmailReaderApplication implements ApplicationRunner {
 			return matcherOptional.get().group();
 
 		return "";
-	}
-
-	private List<String> getPdfLines(PDDocument document) throws IOException {
-		PDFTextStripper pdfTextStripper = new PDFTextStripper();
-		return Arrays.asList(pdfTextStripper.getText(document).split(pdfTextStripper.getLineSeparator()));
 	}
 
 }

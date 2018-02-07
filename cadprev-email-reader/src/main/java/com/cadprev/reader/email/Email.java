@@ -4,12 +4,14 @@ public class Email {
 
     private String uf;
     private String cidade;
-    private String email;
+    private String emailRUGs;
+    private String emailRepresentantesEntes;
 
-    public Email(String uf, String cidade, String email) {
+    public Email(String uf, String cidade, String emailRUGs, String emailRepresentantesEntes) {
         this.uf = uf;
         this.cidade = cidade;
-        this.email = email;
+        this.emailRUGs = emailRUGs;
+        this.emailRepresentantesEntes = emailRepresentantesEntes;
     }
 
     public String getUf() {
@@ -28,16 +30,19 @@ public class Email {
         this.cidade = cidade;
     }
 
-    public String getEmail() {
-        return email;
+    public String getEmailRUGs() {
+        return emailRUGs;
     }
 
-    public void setEmail(String email) {
-        this.email = email;
+    public void setEmailRUGs(String emailRUGs) {
+        this.emailRUGs = emailRUGs;
     }
 
-    @Override
-    public String toString() {
-        return String.format("%s;%s;%s",uf,cidade,email);
+    public String getEmailRepresentantesEntes() {
+        return emailRepresentantesEntes;
+    }
+
+    public void setEmailRepresentantesEntes(String emailRepresentantesEntes) {
+        this.emailRepresentantesEntes = emailRepresentantesEntes;
     }
 }

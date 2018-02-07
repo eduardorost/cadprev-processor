@@ -57,12 +57,12 @@ public class CadprevGeneratorApplication implements ApplicationRunner {
 
 	@Override
 	public void run(ApplicationArguments args) {
+	//	processamentoDairRepository.deleteAll();
 		run();
 	}
 
 	private void run() {
 		try {
-			//processamentoDairRepository.deleteAll();
 			DRIVER.get(URL_CADPREV);
 
 			openDemonstrativosDAIR();
@@ -92,10 +92,19 @@ public class CadprevGeneratorApplication implements ApplicationRunner {
 			getDropdown(UNIDADE_FEDERATIVA).selectByVisibleText(uf);
 
 			List<String> cidadesExecutadas = processamentoDairRepository.findAllCidadesBYUF(uf);
-			getAllOptions(CIDADE).forEach(cidade -> {
-                if(!cidadesExecutadas.contains(cidade))
-                    downloadDAIRCidade(cidade, uf);
-            });
+			List<String> cidades = getAllOptions(CIDADE);
+			if(cidades.size() < 1) {
+				log.info("Não carregou as cidades");
+				try {
+					Thread.sleep(300000);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+				run();
+			}
+
+			cidades.removeAll(cidadesExecutadas);
+			cidades.forEach(cidade -> downloadDAIRCidade(cidade, uf));
 		});
 	}
 

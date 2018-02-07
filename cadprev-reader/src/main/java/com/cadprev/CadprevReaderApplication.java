@@ -1,9 +1,13 @@
 package com.cadprev;
 
 import com.cadprev.entities.DairEntity;
+import com.cadprev.entities.ErroEntity;
 import com.cadprev.entities.FormaGestaoAssessoramentoEntity;
 import com.cadprev.repositories.DairRepository;
+import com.cadprev.repositories.ErroRepository;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.log4j.Logger;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
@@ -14,9 +18,6 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 import java.io.*;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -31,6 +32,8 @@ public class CadprevReaderApplication implements ApplicationRunner {
 
 	@Autowired
 	private DairRepository dairRepository;
+	@Autowired
+	private ErroRepository erroRepository;
 
 	private static final String FOLDER = "/home/eduardorost/Downloads/DAIR/";
 	
@@ -40,39 +43,19 @@ public class CadprevReaderApplication implements ApplicationRunner {
 
 	@Override
 	public void run(ApplicationArguments args) throws IOException, InterruptedException {
-		Files.list(Paths.get(FOLDER)).forEach(this::findUFs);
+		FileUtils.listFiles(new File(FOLDER), new String[]{"pdf"}, true).forEach(file -> {
+			try {
+				readPdf((File) file);
+			} catch (IOException e) {
+				log.info(e.getMessage());
+				erroRepository.save(new ErroEntity(((File) file).getAbsolutePath(), e.getMessage(), ExceptionUtils.getStackTrace(e)));
+			}
+		});
 	}
 
-	private void findUFs(Path pathUF) {
-		log.info("--------------------"+pathUF);
-		try {
-			Files.list(pathUF).forEach(this::processCityFile);
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-	}
+	private void readPdf(File file) throws IOException {
 
-	private void processCityFile(Path pathCity) {
-		log.info(pathCity);
-		try {
-			readPdf(
-					Files
-						.list(pathCity)
-						.findFirst()
-			);
-		} catch (Exception e) {
-			log.info(e.getMessage());
-		}
-	}
-
-	private void readPdf(Optional<Path> optionalPath) throws IOException {
-		if(!optionalPath.isPresent())
-		{
-			log.info("não encontrou arquivo para cidade");
-			return;
-		}
-
-		try (PDDocument document = PDDocument.load(optionalPath.get().toFile())) {
+		try (PDDocument document = PDDocument.load(file)) {
 			List<String> lines = getPdfLines(document);
 
 			DairEntity dairEntity = new DairEntity();
@@ -80,7 +63,7 @@ public class CadprevReaderApplication implements ApplicationRunner {
 			processarDadosEnte(lines, dairEntity);
 			processarDadosRepresentanteEnte(lines, dairEntity);
 			processarUnidadeGestoraAndRepresentante(lines, dairEntity);
-			processarFormaGestaoAssessoramento(lines, dairEntity);
+			processarFormaGestaoAssessoramento(lines, dairEntity, file);
 			dairEntity.setTotalRecursosRPPS(getTotalRecursosRPPS(lines));
 
 			DairEntity save = dairRepository.save(dairEntity);
@@ -88,6 +71,7 @@ public class CadprevReaderApplication implements ApplicationRunner {
 			save.getId();
 		} catch (Exception e) {
 			log.info("erro processar arquivo", e);
+			erroRepository.save(new ErroEntity(file.getAbsolutePath(), "erro processar arquivo", ExceptionUtils.getStackTrace(e)));
 		}
 	}
 
@@ -100,7 +84,7 @@ public class CadprevReaderApplication implements ApplicationRunner {
 
 		dairEntity.setCidade(split[1]);
 		dairEntity.setUf(getInfo("[A-Z]{2}", infos));
-		dairEntity.setInfosEnte(infos.stream().collect(Collectors.joining(", ")));
+		dairEntity.setInfosEnte(infos.stream().collect(Collectors.joining("; ")));
 	}
 
 	private void processarDadosRepresentanteEnte(List<String> lines, DairEntity dairEntity) {
@@ -116,16 +100,16 @@ public class CadprevReaderApplication implements ApplicationRunner {
 		dairEntity.setInfosRUG(getInfosAsString(29, 31, headersAndInfos));
 	}
 
-	private void processarFormaGestaoAssessoramento(List<String> lines, DairEntity dairEntity) {
-		ArrayList<String> formaGestao = getSectionInformation(lines, "FORMA DE GESTÃO E ASSESSORAMENTO", "MINISTÉRIO DA PREVIDÊNCIA SOCIAL - MPS", true);
+	private void processarFormaGestaoAssessoramento(List<String> lines, DairEntity dairEntity, File file) {
+		ArrayList<String> formaGestao = getSectionLastInformation(lines, "FORMA DE GESTÃO E ASSESSORAMENTO", "MINISTÉRIO DA PREVIDÊNCIA SOCIAL - MPS", true);
 
 		if(formaGestao.contains("Nenhum registro informado."))
 			return;
 
-		dairEntity.setFormaGestaoAssessoramentoEntity(processarFormaGestaoAssessoramentoContratoVigente(formaGestao));
+		dairEntity.setFormaGestaoAssessoramentoEntity(processarFormaGestaoAssessoramentoContratoVigente(formaGestao, file));
 	}
 
-	private FormaGestaoAssessoramentoEntity processarFormaGestaoAssessoramentoContratoVigente(List<String> formaGestao) {
+	private FormaGestaoAssessoramentoEntity processarFormaGestaoAssessoramentoContratoVigente(List<String> formaGestao, File file) {
 		formaGestao.remove("Informações do contrato vigente");
 		FormaGestaoAssessoramentoEntity formaGestaoAssessoramentoEntity = new FormaGestaoAssessoramentoEntity();
 
@@ -139,13 +123,14 @@ public class CadprevReaderApplication implements ApplicationRunner {
 			c.add(Calendar.MONTH, formaGestaoAssessoramentoEntity.getPrazoVigencia());
 			formaGestaoAssessoramentoEntity.setDataFinalContrato(sdf.format(c.getTime()));
 		} catch (ParseException e) {
+			erroRepository.save(new ErroEntity(file.getAbsolutePath(), "Erro ao converter dataAssinaturaContrato", ExceptionUtils.getStackTrace(e)));
 			log.error("Erro ao converter dataAssinaturaContrato", e);
 		}
 
 		formaGestaoAssessoramentoEntity.setRazaoSocial(formaGestao.stream().filter(s -> s.contains("Razão Social:")).findFirst().orElse("").replace("Razão Social:", ""));
 		formaGestaoAssessoramentoEntity.setValorContratualMensal(formaGestao.stream().filter(s -> s.contains("Valor contratual Mensal (R$):")).findFirst().orElse("").replace("Valor contratual Mensal (R$):", ""));
 
-		formaGestaoAssessoramentoEntity.setDetalhes(formaGestao.stream().collect(Collectors.joining(", ")));
+		formaGestaoAssessoramentoEntity.setDetalhes(formaGestao.stream().collect(Collectors.joining("; ")));
 
 		return  formaGestaoAssessoramentoEntity;
 	}
@@ -157,11 +142,13 @@ public class CadprevReaderApplication implements ApplicationRunner {
 
 	private ArrayList<String> getSectionInformation(List<String> lines, String start, String end, boolean removeLast) {
 		List<String> strings = lines.subList(lines.indexOf(start) + 1, lines.size());
-		return new ArrayList<>(strings.subList(0, removeLast ? strings.indexOf(end) - 1 : strings.indexOf(end)));
+		int idx = strings.indexOf(end);
+		return new ArrayList<>(strings.subList(0, removeLast && idx > 0 ? idx - 1 : idx));
 	}
 
-	private ArrayList<String> getHeaders(int start, int end, ArrayList<String> headersAndInfos) {
-		return new ArrayList<>(headersAndInfos.subList(start, end).stream().map(s -> s.split(":")).flatMap(Arrays::stream).collect(Collectors.toList()));
+	private ArrayList<String> getSectionLastInformation(List<String> lines, String start, String end, boolean removeLast) {
+		List<String> strings = lines.subList(lines.lastIndexOf(start) + 1, lines.size());
+		return new ArrayList<>(strings.subList(0, removeLast ? strings.indexOf(end) - 1 : strings.indexOf(end)));
 	}
 
 	private ArrayList<String> getInfos(int start, Integer end, ArrayList<String> headersAndInfos) {
@@ -169,7 +156,7 @@ public class CadprevReaderApplication implements ApplicationRunner {
 	}
 
 	private String getInfosAsString(int start, Integer end, ArrayList<String> headersAndInfos) {
-		return headersAndInfos.subList(start, end != null ? end : headersAndInfos.size()).stream().collect(Collectors.joining(", "));
+		return headersAndInfos.subList(start, end != null ? end : headersAndInfos.size()).stream().collect(Collectors.joining("; "));
 	}
 
 	private String getInfo(String pattern, List<String> strings) {
