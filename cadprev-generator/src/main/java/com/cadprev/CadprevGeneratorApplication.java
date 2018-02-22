@@ -10,6 +10,7 @@ import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.log4j.Logger;
 import org.openqa.selenium.NoSuchElementException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
@@ -26,19 +27,32 @@ public class CadprevGeneratorApplication implements ApplicationRunner {
 
 	static Logger log = Logger.getLogger(CadprevGeneratorApplication.class);
 
-	private static final String FOLDER_DOWNLOAD = "/home/eduardorost/Downloads";
-	private static final String FOLDER_DOWNLOAD_DAIR = FOLDER_DOWNLOAD + "/DAIR/";
-	private static final String URL_CADPREV = "http://cadprev.previdencia.gov.br/Cadprev/faces/pages/index.xhtml";
-	private static final String CONSULTAS_PUBLICAS = "//*[@id=\"udm\"]/li[2]";
-	private static final String APLICACOES = "//*[@id=\"udm\"]/li[2]/ul/li[2]/a/label";
-	private static final String CONSULTAS_DEMONSTRATIVOS = "//*[@id=\"udm\"]/li[2]/ul/li[2]/ul/li[2]/a/label";
-	private static final String UNIDADE_FEDERATIVA = "//*[@id=\"form:unidadeFederativa\"]";
-	private static final String CIDADE = "//*[@id=\"form:ente\"]";
-	private static final String ENCERRAMENTO_MES = "//*[@id=\"form:finalidadeDAIR:0\"]";
-	private static final String OPERACOES = "//*[@id=\"form:finalidadeDAIR:1\"]";
-	private static final String INTERMEDIARIO = "//*[@id=\"form:finalidadeDAIR:2\"]";
-	private static final String CONSULTAR = "//*[@id=\"form:botaoConsultar\"]";
-	private static final String DOWNLOAD = "//*[@id=\"formTabela:tabDAIR:0:botaoImprimirDairPdf\"]";
+	@Value("${folder-download}")
+	private String FOLDER_DOWNLOAD;
+	@Value("${folder-download-dair}")
+	private String FOLDER_DOWNLOAD_DAIR;
+	@Value("${url-cadprev}")
+	private String URL_CADPREV;
+	@Value("${consultas-publicas}")
+	private String CONSULTAS_PUBLICAS;
+	@Value("${aplicacoes}")
+	private String APLICACOES;
+	@Value("${consultas-demonstrativos}")
+	private String CONSULTAS_DEMONSTRATIVOS;
+	@Value("${unidade-federativa}")
+	private String UNIDADE_FEDERATIVA;
+	@Value("${cidade}")
+	private String CIDADE;
+	@Value("${encerramento-mes}")
+	private String ENCERRAMENTO_MES;
+	@Value("${operacoes}")
+	private String OPERACOES;
+	@Value("${intermediario}")
+	private String INTERMEDIARIO;
+	@Value("${consultar}")
+	private String CONSULTAR;
+	@Value("${download}")
+	private String DOWNLOAD;
 
 	@Autowired
 	private SeleniumService seleniumService;
