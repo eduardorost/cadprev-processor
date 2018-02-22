@@ -1,25 +1,27 @@
 package com.cadprev.entities;
 
-import javax.persistence.*;
+import javax.persistence.Column;
+import javax.persistence.Entity;
+import javax.persistence.GeneratedValue;
+import javax.persistence.Id;
 
-@Entity(name = "erro")
-public class ErroEntity {
+@Entity(name = "processamento_erro")
+public class ProcessamentoErroEntity {
 
     @Id
     @GeneratedValue
     private Long id;
 
-    private String arquivo;
+    private String uf;
+    private String cidade;
     @Column(columnDefinition="TEXT")
     private String erro;
     @Column(columnDefinition="TEXT")
     private String stacktrace;
 
-    public ErroEntity() {
-    }
-
-    public ErroEntity(String arquivo, String erro, String stacktrace) {
-        this.arquivo = arquivo;
+    public ProcessamentoErroEntity(String uf, String cidade, String erro, String stacktrace) {
+        this.uf = uf;
+        this.cidade = cidade;
         this.erro = erro;
         this.stacktrace = stacktrace;
     }
@@ -32,12 +34,20 @@ public class ErroEntity {
         this.id = id;
     }
 
-    public String getArquivo() {
-        return arquivo;
+    public String getUf() {
+        return uf;
     }
 
-    public void setArquivo(String arquivo) {
-        this.arquivo = arquivo;
+    public void setUf(String uf) {
+        this.uf = uf;
+    }
+
+    public String getCidade() {
+        return cidade;
+    }
+
+    public void setCidade(String cidade) {
+        this.cidade = cidade;
     }
 
     public String getErro() {

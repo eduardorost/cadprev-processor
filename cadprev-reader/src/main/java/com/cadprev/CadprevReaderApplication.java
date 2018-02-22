@@ -43,6 +43,9 @@ public class CadprevReaderApplication implements ApplicationRunner {
 
 	@Override
 	public void run(ApplicationArguments args) throws IOException, InterruptedException {
+		dairRepository.deleteAll();
+		erroRepository.deleteAll();
+
 		FileUtils.listFiles(new File(FOLDER), new String[]{"pdf"}, true).forEach(file -> {
 			try {
 				readPdf((File) file);
@@ -137,7 +140,9 @@ public class CadprevReaderApplication implements ApplicationRunner {
 
 	private String getTotalRecursosRPPS(List<String> lines) {
 		ArrayList<String> infos = getSectionInformation(lines, "TOTAL DE RECURSOS DO RPPS PARA CÔMPUTO DOS LIMITES:", "MINISTÉRIO DA PREVIDÊNCIA SOCIAL - MPS", true);
-		return infos.get(infos.size() - 1);
+		if(infos.size() > 0)
+			return infos.get(infos.size() - 1);
+		return "";
 	}
 
 	private ArrayList<String> getSectionInformation(List<String> lines, String start, String end, boolean removeLast) {

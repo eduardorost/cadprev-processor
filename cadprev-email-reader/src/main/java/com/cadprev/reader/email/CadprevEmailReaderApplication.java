@@ -1,5 +1,7 @@
 package com.cadprev.reader.email;
 
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.log4j.Logger;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
@@ -10,9 +12,6 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.util.StringUtils;
 
 import java.io.*;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -24,7 +23,7 @@ public class CadprevEmailReaderApplication implements ApplicationRunner {
 	static Logger log = Logger.getLogger(CadprevEmailReaderApplication.class);
 
 	private static final String BASE = "/home/eduardorost/Downloads";
-	private static final String FOLDER = BASE + "/teste/";
+	private static final String FOLDER = BASE + "/DAIR/";
 	
 	public static void main(String[] args) {
 		SpringApplication.run(CadprevEmailReaderApplication.class, args);
@@ -32,14 +31,17 @@ public class CadprevEmailReaderApplication implements ApplicationRunner {
 
 	@Override
 	public void run(ApplicationArguments args) throws IOException, InterruptedException {
-		List<Email> emailList = Files.list(Paths.get(FOLDER)).map(this::findUFs).flatMap(List::stream).collect(Collectors.toList());
-		//generateCSV(emailList);
+		ArrayList<Email> emailList = (ArrayList<Email>) FileUtils.listFiles(new File(FOLDER), new String[]{"pdf"}, true)
+				.stream().map(file -> readPdf((File) file))
+				.filter(Objects::nonNull)
+				.collect(Collectors.toList());
+		//List<Email> emailList = Files.list(Paths.get(FOLDER)).map(this::findUFs).flatMap(List::stream).collect(Collectors.toList());
+		generateCSV(emailList);
 	}
 
-	private String getEmailInfosRUG(List<String> lines) {
+	private String getEmailRUG(List<String> lines) {
 		ArrayList<String> headersAndInfos = getSectionInformation(lines, "DADOS DA UNIDADE GESTORA", "MINISTÉRIO DA PREVIDÊNCIA SOCIAL - MPS", true);
-		ArrayList<String> infosRUG = getInfos(29, 31, headersAndInfos);
-		List<String> collect = infosRUG.stream().map(s -> s.split(" ")).flatMap(Arrays::stream).collect(Collectors.toList());
+		List<String> collect = headersAndInfos.stream().map(s -> s.split(" ")).flatMap(Arrays::stream).collect(Collectors.toList());
 		String email = getInfo("[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+", new ArrayList<>(collect));
 
 		if(!StringUtils.isEmpty(email))
@@ -57,24 +59,18 @@ public class CadprevEmailReaderApplication implements ApplicationRunner {
 		}
 	}
 
-	private Email readPdf(Optional<Path> optionalPath) throws IOException {
-		if(!optionalPath.isPresent())
-		{
-			log.info("não encontrou arquivo para cidade");
-		}
-
-		//RETIRAR EMAIL infosrug e infos_representante_entes
-
-		try (PDDocument document = PDDocument.load(optionalPath.get().toFile())) {
+	private Email readPdf(File file) {
+		try (PDDocument document = PDDocument.load(file)) {
 			List<String> lines = getPdfLines(document);
 
 			ArrayList<String> headersAndInfosENTE = getSectionInformation(lines, "DEMONSTRATIVO DE APLICAÇÕES E INVESTIMENTOS DOS RECURSOS - DAIR", "DADOS DO REPRESENTANTE LEGAL DO ENTE", false);
 			String cidade = headersAndInfosENTE.get(0).split(":")[1];
 			String uf = headersAndInfosENTE.stream().filter(s -> s.length() == 2).findFirst().orElse("");
-			String emailInfosRUG = getEmailInfosRUG(lines);
+
+			String emailRUG = getEmailRUG(lines);
 			String emailRepresentanteEnte = getEmailRepresentanteEnte(lines);
 
-
+			return new Email(uf, cidade, emailRUG, emailRepresentanteEnte);
 		} catch (Exception e) {
 			log.info("erro processar arquivo", e);
 		}
@@ -88,39 +84,16 @@ public class CadprevEmailReaderApplication implements ApplicationRunner {
 	}
 
 	private void generateCSV(List<Email> emailList) throws IOException {
-		String csv = emailList.stream().map(Email::toString).collect(Collectors.joining(System.getProperty("line.separator")));
+		String csv = "uf;cidade;emailRUG;emailRepresentantesEnte" + System.lineSeparator();
+		csv += emailList.stream().map(Email::toString).collect(Collectors.joining(System.getProperty("line.separator")));
 
-		try(PrintWriter out = new PrintWriter(BASE + "/Email.csv")){
-			out.println(csv);
-		}
-	}
-
-	private Email processCityFile(Path pathCity) {
-		log.info(pathCity);
-		try {
-			return readPdf(
-					Files
-							.list(pathCity)
-							.findFirst()
-			);
-		} catch (Exception e) {
-			log.info(e.getMessage());
+		try(BufferedWriter fw = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(new File(BASE + "/email.csv")),"UTF-8"))) {
+			fw.write(csv);
 		}
 
-		return null;
-	}
-
-	private List<Email> findUFs(Path pathUF) {
-		log.info("--------------------"+pathUF);
-		List<Email> emailList = new ArrayList<>();
-		try {
-			emailList = Files.list(pathUF).map(this::processCityFile).filter(Objects::nonNull).collect(Collectors.toList());
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-
-		return emailList;
-
+		//try(PrintWriter out = new PrintWriter(BASE + "/email.csv")){
+			//out.println(csv);
+		//}
 	}
 
 	private ArrayList<String> getSectionInformation(List<String> lines, String start, String end, boolean removeLast) {

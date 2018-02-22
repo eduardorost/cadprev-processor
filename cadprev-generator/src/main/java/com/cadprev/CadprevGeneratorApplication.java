@@ -1,9 +1,12 @@
 package com.cadprev;
 
 import com.cadprev.entities.ProcessamentoDairEntity;
+import com.cadprev.entities.ProcessamentoErroEntity;
 import com.cadprev.repositories.ProcessamentoDairRepository;
+import com.cadprev.repositories.ProcessamentoErroRepository;
 import com.google.common.collect.Lists;
 import com.google.common.io.Files;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.log4j.Logger;
 import org.openqa.selenium.By;
 import org.openqa.selenium.NoSuchElementException;
@@ -50,6 +53,8 @@ public class CadprevGeneratorApplication implements ApplicationRunner {
 
 	@Autowired
 	private ProcessamentoDairRepository processamentoDairRepository;
+	@Autowired
+	private ProcessamentoErroRepository processamentoErroRepository;
 
 	public static void main(String[] args) {
 		SpringApplication.run(CadprevGeneratorApplication.class, args);
@@ -57,7 +62,8 @@ public class CadprevGeneratorApplication implements ApplicationRunner {
 
 	@Override
 	public void run(ApplicationArguments args) {
-	//	processamentoDairRepository.deleteAll();
+		//processamentoDairRepository.deleteAll();
+		//processamentoErroRepository.deleteAll();
 		run();
 	}
 
@@ -125,9 +131,14 @@ public class CadprevGeneratorApplication implements ApplicationRunner {
 			clickElement(DOWNLOAD);
 			renameFile(uf, cidade);
 		} catch (NoSuchElementException ex) {
-			log.info(cidade + " não tem arquivo disponível");
+			log.info(String.format("cidade %s estado %s não tem arquivo disponível", cidade, uf));
+			processamentoErroRepository.save(new ProcessamentoErroEntity(uf, cidade, String.format("cidade %s estado %s não tem arquivo disponível", cidade, uf), ExceptionUtils.getStackTrace(ex)));
 		} catch (IOException e) {
 			log.info(String.format("erro ao renomear arquivo cidade %s estado %s", cidade, uf), e);
+			processamentoErroRepository.save(new ProcessamentoErroEntity(uf, cidade, String.format("erro ao renomear arquivo cidade %s estado %s", cidade, uf), ExceptionUtils.getStackTrace(e)));
+		} catch (Exception ex) {
+			log.info(String.format("erro ao processar cidade %s estado %s", cidade, uf));
+			processamentoErroRepository.save(new ProcessamentoErroEntity(uf, cidade, ex.getMessage(), ExceptionUtils.getStackTrace(ex)));
 		}
 
 		processamentoDairRepository.save(new ProcessamentoDairEntity(cidade, uf));
