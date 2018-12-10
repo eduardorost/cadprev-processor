@@ -19,6 +19,9 @@ public class ProcessamentoErroEntity {
     @Column(columnDefinition="TEXT")
     private String stacktrace;
 
+    public ProcessamentoErroEntity() {
+    }
+
     public ProcessamentoErroEntity(String uf, String cidade, String erro, String stacktrace) {
         this.uf = uf;
         this.cidade = cidade;

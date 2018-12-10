@@ -6,7 +6,9 @@ import com.cadprev.repositories.ProcessamentoDairRepository;
 import com.cadprev.repositories.ProcessamentoErroRepository;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.log4j.Logger;
+import org.awaitility.core.ConditionTimeoutException;
 import org.openqa.selenium.NoSuchElementException;
+import org.openqa.selenium.TimeoutException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -68,10 +70,12 @@ public class ProcessService {
             if(estadosExecutados.contains(uf))
                 return;
 
+            log.info("processando estado: "+uf);
             dairService.getEstado(uf);
 
             List<String> cidadesExecutadas = processamentoDairRepository.findAllCidadesBYUF(uf);
             List<String> cidades = dairService.getCidades();
+            //TODO: ver como fazer com selenium a verificacao
             if(cidades.size() < 1) {
                 log.info("Não carregou as cidades");
                 try {
@@ -82,21 +86,23 @@ public class ProcessService {
                 run();
             }
 
+            log.info("cidades do estado: " + String.join(", ", cidades));
             cidades.removeAll(cidadesExecutadas);
             cidades.forEach(cidade -> downloadDAIRCidade(cidade, uf));
         });
     }
 
     public void downloadDAIRCidade(String cidade, String uf) {
-        dairService.consultar(cidade);
+        log.info("processando cidade: "+cidade);
 
         try {
+            dairService.consultar(cidade);
             seleniumService.clickElement(download);
             fileService.renameFile(uf, cidade);
-        } catch (NoSuchElementException ex) {
+        } catch (NoSuchElementException | TimeoutException ex) {
             log.info(String.format("cidade %s estado %s não tem arquivo disponível", cidade, uf));
             processamentoErroRepository.save(new ProcessamentoErroEntity(uf, cidade, String.format("cidade %s estado %s não tem arquivo disponível", cidade, uf), ExceptionUtils.getStackTrace(ex)));
-        } catch (IOException e) {
+        } catch (ConditionTimeoutException | IOException e) {
             log.info(String.format("erro ao renomear arquivo cidade %s estado %s", cidade, uf), e);
             processamentoErroRepository.save(new ProcessamentoErroEntity(uf, cidade, String.format("erro ao renomear arquivo cidade %s estado %s", cidade, uf), ExceptionUtils.getStackTrace(e)));
         } catch (Exception ex) {

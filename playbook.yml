@@ -1,30 +1,23 @@
 - hosts: all
-  sudo: true
+  become: yes
+  gather_facts: no
+  pre_tasks:
+    - name: 'install python2'
+      raw: sudo apt-get -y install python
   tasks:
-    
-    - name: update system
-      shell: apt-get update
-    
-    - name: update system
-      shell: apt-get install zip unzip
-    
-    - name: install java jdk
-      shell: apt-get install -y default-jdk
 
-    - name: download gradle
-      shell: wget https://services.gradle.org/distributions/gradle-3.4.1-bin.zip
+    - name: install firefox
+      apt:
+        name: firefox
+        update_cache: yes
 
-    - name: create folder for gradle
-      shell: mkdir /opt/gradle
-
-    - name: unzip gradle to new folder
-      shell: unzip -d /opt/gradle gradle-3.4.1-bin.zip
-
-    #- name: export path gradle
-    #  shell: export PATH=$PATH:/opt/gradle/gradle-3.4.1/bin
+    - name: install default-jdk
+      apt:
+        name: default-jdk
+        update_cache: yes
 
     - name: download geckodriver
-      shell: wget https://github.com/mozilla/geckodriver/releases/download/v0.18.0/geckodriver-v0.18.0-linux64.tar.gz
+      shell: wget https://github.com/mozilla/geckodriver/releases/download/v0.23.0/geckodriver-v0.23.0-linux64.tar.gz
 
     - name: unzip geckodriver
       shell: tar -xvzf geckodriver*
@@ -37,13 +30,19 @@
       args:
         chdir: /usr/local/bin
 
-    #- name: export geckodriver path
-    #  shell: export PATH=$PATH:/usr/local/bin/geckodriver
+    - name: export geckodriver path
+      shell: export PATH=$PATH:/usr/local/bin/geckodriver
 
-    - copy: src=/home/eduardorost/Documents/projetos/github/selenium-test/cadprev/cadprev-generator dest=/
+    - name: copy generator project
+      copy:
+        src: cadprev-generator/
+        dest: ~/cadprev-generator
 
-    - name: run project
-      shell: /opt/gradle/gradle-3.4.1/bin/gradle bootRun
-      args:
-        chdir: /cadprev
+    - name: permission gradlew
+      shell: chmod +x ~/cadprev-generator/gradlew
+
+    #- name: run project
+    #  shell: ./gradlew bootRun
+    #  args:
+    #    chdir: ~/cadprev-generator
   

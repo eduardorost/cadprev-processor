@@ -10,6 +10,10 @@ import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
+
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.awaitility.Awaitility.await;
+
 @Service
 public class FileService {
 
@@ -24,15 +28,12 @@ public class FileService {
         File dairFile = new File(String.format("%s/DAIR_%s.pdf", folderDownload, new SimpleDateFormat("yyyyMMdd").format(new Date())));
         File dairNewFile = new File(String.format("%s/%s/%s/", folderDownloadDair, uf.replace(" ",""), cidade.replace(" ","")) + dairFile.getName());
 
-        try {
-            Thread.sleep(5000);
-        } catch (InterruptedException e) {
-            log.info("erro ao dormir thread");
-        }
+        await().atMost(30, SECONDS)
+                .ignoreExceptions()
+                .until(dairFile::exists);
 
         Files.createParentDirs(dairNewFile);
         Files.move(dairFile, dairNewFile);
-
     }
 
 }

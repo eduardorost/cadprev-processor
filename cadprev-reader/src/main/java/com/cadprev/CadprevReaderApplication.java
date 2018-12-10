@@ -12,6 +12,7 @@ import org.apache.log4j.Logger;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
@@ -35,7 +36,8 @@ public class CadprevReaderApplication implements ApplicationRunner {
 	@Autowired
 	private ErroRepository erroRepository;
 
-	private static final String FOLDER = "/home/eduardorost/Downloads/DAIR/";
+	@Value("${folder-download-dair}")
+	private String folderDownloadDair;
 	
 	public static void main(String[] args) {
 		SpringApplication.run(CadprevReaderApplication.class, args);
@@ -46,7 +48,7 @@ public class CadprevReaderApplication implements ApplicationRunner {
 		dairRepository.deleteAll();
 		erroRepository.deleteAll();
 
-		FileUtils.listFiles(new File(FOLDER), new String[]{"pdf"}, true).forEach(file -> {
+		FileUtils.listFiles(new File(folderDownloadDair), new String[]{"pdf"}, true).forEach(file -> {
 			try {
 				readPdf((File) file);
 			} catch (IOException e) {
@@ -87,7 +89,7 @@ public class CadprevReaderApplication implements ApplicationRunner {
 
 		dairEntity.setCidade(split[1]);
 		dairEntity.setUf(getInfo("[A-Z]{2}", infos));
-		dairEntity.setInfosEnte(infos.stream().collect(Collectors.joining("; ")));
+		dairEntity.setInfosEnte(String.join("; ", infos));
 	}
 
 	private void processarDadosRepresentanteEnte(List<String> lines, DairEntity dairEntity) {
@@ -133,7 +135,7 @@ public class CadprevReaderApplication implements ApplicationRunner {
 		formaGestaoAssessoramentoEntity.setRazaoSocial(formaGestao.stream().filter(s -> s.contains("Razão Social:")).findFirst().orElse("").replace("Razão Social:", ""));
 		formaGestaoAssessoramentoEntity.setValorContratualMensal(formaGestao.stream().filter(s -> s.contains("Valor contratual Mensal (R$):")).findFirst().orElse("").replace("Valor contratual Mensal (R$):", ""));
 
-		formaGestaoAssessoramentoEntity.setDetalhes(formaGestao.stream().collect(Collectors.joining("; ")));
+		formaGestaoAssessoramentoEntity.setDetalhes(String.join("; ", formaGestao));
 
 		return  formaGestaoAssessoramentoEntity;
 	}
